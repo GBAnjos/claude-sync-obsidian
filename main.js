@@ -1,7 +1,7 @@
 // Claude Sync - Obsidian Plugin
 // Automatically imports Claude chat exports from a watched folder
 
-const { Plugin, PluginSettingTab, Setting, Notice, TFolder } = require('obsidian');
+const { Plugin, PluginSettingTab, Setting, Notice, TFolder, normalizePath } = require('obsidian');
 const fs = require('fs');
 const path = require('path');
 
@@ -142,10 +142,12 @@ class ClaudeSyncPlugin extends Plugin {
       const relativePath = path.relative(this.settings.watchFolder, sourcePath);
       const subFolder = path.dirname(relativePath);
 
-      // Build destination path
+      // Build destination path (use normalizePath for cross-platform compatibility)
       let destFolder = this.settings.vaultFolder;
       if (subFolder && subFolder !== '.') {
-        destFolder = path.join(destFolder, subFolder);
+        destFolder = normalizePath(destFolder + '/' + subFolder);
+      } else {
+        destFolder = normalizePath(destFolder);
       }
 
       // Ensure destination folder exists in vault
@@ -154,8 +156,8 @@ class ClaudeSyncPlugin extends Plugin {
       // Read file content
       const content = fs.readFileSync(sourcePath, 'utf8');
 
-      // Destination path in vault
-      const destPath = path.join(destFolder, fileName);
+      // Destination path in vault (normalized for Obsidian)
+      const destPath = normalizePath(destFolder + '/' + fileName);
 
       // Check if file already exists
       const existingFile = this.app.vault.getAbstractFileByPath(destPath);
@@ -193,11 +195,13 @@ class ClaudeSyncPlugin extends Plugin {
   }
 
   async ensureFolder(folderPath) {
-    const folders = folderPath.split('/').filter(f => f.length > 0);
+    // Normalize and split path (handles both / and \ separators)
+    const normalized = normalizePath(folderPath);
+    const folders = normalized.split('/').filter(f => f.length > 0);
     let currentPath = '';
 
     for (const folder of folders) {
-      currentPath = currentPath ? `${currentPath}/${folder}` : folder;
+      currentPath = currentPath ? normalizePath(currentPath + '/' + folder) : folder;
 
       const existing = this.app.vault.getAbstractFileByPath(currentPath);
       if (!existing) {
